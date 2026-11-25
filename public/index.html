@@ -3,10 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rulvare - Tools for Game Developers</title>
+<title>Rulvare Tools - Free Calculators for Game Developers</title>
+<meta name="description" content="Free, simple calculators for game developers by Rulvare: texture memory and more.">
+<style>
+:root{--bg:#f7f8fa;--card:#fff;--text:#1c2330;--muted:#5b6575;--line:#dde2ea;--accent:#2f6fde}
+@media (prefers-color-scheme:dark){:root{--bg:#12161d;--card:#1a2029;--text:#e6eaf0;--muted:#9aa4b3;--line:#2c3440;--accent:#6b9cf0}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:16px}
+h1{font-size:1.8rem;margin:16px 0 4px}
+.lead{color:var(--muted);margin:0 0 20px}
+.tool{display:block;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:12px 0;color:var(--text);text-decoration:none}
+.tool:hover{border-color:var(--accent)}
+.tool strong{color:var(--accent);font-size:1.1rem}
+.tool span{display:block;color:var(--muted);font-size:15px}
+footer{color:var(--muted);font-size:14px;border-top:1px solid var(--line);margin-top:32px;padding-top:12px}
+footer a{color:var(--accent)}
+</style>
 </head>
 <body>
-<h1>Rulvare</h1>
-<p>Tools for game developers. Coming soon.</p>
+<div class="wrap">
+<h1>Rulvare Tools</h1>
+<p class="lead">Free, simple calculators for game developers. No sign-up, everything runs in your browser.</p>
+
+<a class="tool" href="/texture-memory-calculator/"><strong>Texture Memory Calculator</strong>
+<span>GPU memory for a texture by resolution, format (RGBA32, BC1&ndash;BC7, ETC2, ASTC), mipmaps, cubemaps and arrays. Compare all formats side by side.</span></a>
+
+<p class="lead">More tools are added over time.</p>
+
+<footer>
+<p>Rulvare makes tools for game developers, including editor tools for Unity. Follow on X: <a href="https://x.com/Rulvare000" rel="noopener">@Rulvare000</a></p>
+<p>Built with the help of AI (Claude). Calculations are checked against independent implementations. Not affiliated with Unity Technologies, Epic Games or any engine vendor.</p>
+</footer>
+</div>
 </body>
 </html>
