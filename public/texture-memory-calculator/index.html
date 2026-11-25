@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Texture Memory Calculator (BC7, ASTC, ETC2, mipmaps) | Rulvare</title>
+<meta name="description" content="Free texture memory calculator for game developers. Estimate GPU memory for a texture by resolution, format (RGBA32, BC1/DXT1, BC3/DXT5, BC7, ETC2, ASTC), mipmaps, cubemaps and arrays, and compare all formats side by side.">
+<link rel="canonical" href="https://rulvare-tools.salreyoutube.workers.dev/texture-memory-calculator/">
+<style>
+:root{--bg:#f7f8fa;--card:#fff;--text:#1c2330;--muted:#5b6575;--line:#dde2ea;--accent:#2f6fde;--accent-soft:#e8f0fd}
+@media (prefers-color-scheme:dark){:root{--bg:#12161d;--card:#1a2029;--text:#e6eaf0;--muted:#9aa4b3;--line:#2c3440;--accent:#6b9cf0;--accent-soft:#1f2c42}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:16px}
+header a{color:var(--muted);text-decoration:none;font-size:14px}
+h1{font-size:1.6rem;margin:8px 0 4px}
+h2{font-size:1.2rem;margin:28px 0 8px}
+.lead{color:var(--muted);margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+label{display:block;font-size:14px;color:var(--muted);margin-bottom:4px}
+input[type=number],select{width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--text);font-size:16px}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:15px;color:var(--text);margin-top:4px}
+.check input{margin-top:5px}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.presets button{border:1px solid var(--line);background:var(--accent-soft);color:var(--text);border-radius:6px;padding:4px 10px;font-size:14px;cursor:pointer}
+.big{font-size:2rem;font-weight:700;color:var(--accent);margin:0}
+.sub{color:var(--muted);font-size:14px;margin:2px 0 0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th,.tbl td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl tr.sel td{background:var(--accent-soft);font-weight:600}
+.scroll{overflow-x:auto}
+.err{color:#d33;font-size:14px}
+code{background:var(--accent-soft);padding:1px 4px;border-radius:4px;font-size:14px}
+footer{color:var(--muted);font-size:14px;border-top:1px solid var(--line);margin-top:32px;padding-top:12px}
+footer a,.card a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><a href="/">&larr; Rulvare Tools</a></header>
+<h1>Texture Memory Calculator</h1>
+<p class="lead">Estimate how much GPU memory a texture uses, by resolution, format, mipmaps and shape. Compare uncompressed, BC (DXT), ETC2 and ASTC formats side by side.</p>
+
+<div class="card">
+  <div class="grid">
+    <div><label for="w">Width (px)</label><input id="w" type="number" min="1" max="65536" value="2048"></div>
+    <div><label for="h">Height (px)</label><input id="h" type="number" min="1" max="65536" value="2048"></div>
+    <div><label for="fmt">Format</label><select id="fmt"></select></div>
+    <div><label for="shape">Shape</label>
+      <select id="shape"><option value="2d">2D texture</option><option value="cube">Cubemap (6 faces)</option><option value="array">2D array</option></select></div>
+    <div id="layersBox" hidden><label for="layers">Array layers</label><input id="layers" type="number" min="1" max="4096" value="4"></div>
+    <div><label for="count">Number of textures</label><input id="count" type="number" min="1" max="100000" value="1"></div>
+  </div>
+  <div class="presets" aria-label="Size presets">
+    <button data-s="256">256</button><button data-s="512">512</button><button data-s="1024">1K</button><button data-s="2048">2K</button><button data-s="4096">4K</button><button data-s="8192">8K</button>
+  </div>
+  <label class="check"><input id="mips" type="checkbox" checked> Generate mipmaps (full chain down to 1&times;1)</label>
+  <label class="check"><input id="cpu" type="checkbox"> Also keep a CPU-side copy (e.g. "Read/Write" enabled in Unity) &mdash; counts the data twice</label>
+  <p id="err" class="err" role="alert"></p>
+</div>
+
+<div class="card">
+  <div class="stats">
+    <div><p class="sub">Total memory</p><p class="big" id="total">&ndash;</p><p class="sub" id="totalBytes"></p></div>
+    <div><p class="sub">Per texture</p><p class="big" id="per" style="font-size:1.5rem">&ndash;</p><p class="sub" id="perNote"></p></div>
+    <div><p class="sub">Bits per pixel / mip levels</p><p class="big" id="bpp" style="font-size:1.5rem">&ndash;</p><p class="sub" id="ratio"></p></div>
+  </div>
+</div>
+
+<h2>Compare formats (same size and settings)</h2>
+<div class="card scroll"><table class="tbl" id="cmp"><thead><tr><th>Format</th><th>Block</th><th>bpp</th><th>Total</th><th>vs RGBA32</th></tr></thead><tbody></tbody></table></div>
+
+<h2>Mip chain (one face / layer)</h2>
+<div class="card scroll"><table class="tbl" id="miptbl"><thead><tr><th>Level</th><th>Size</th><th>Blocks</th><th>Bytes</th></tr></thead><tbody></tbody></table></div>
+
+<h2>How it works</h2>
+<p>This tool is for game developers and technical artists who need a quick estimate of texture memory while planning a budget for mobile, console or PC.</p>
+<p><strong>Uncompressed formats</strong> store a fixed number of bytes per pixel: <code>bytes = width &times; height &times; bytesPerPixel</code>.</p>
+<p><strong>Block-compressed formats</strong> (BC1&ndash;BC7, ETC, ASTC) store fixed-size blocks: <code>bytes = ceil(width / blockW) &times; ceil(height / blockH) &times; blockBytes</code>. A 1&times;1 or 2&times;2 mip still takes a whole block, so small mips cost slightly more than "bpp &times; pixels".</p>
+<p><strong>Mipmaps</strong>: level <em>i</em> is <code>max(1, floor(width / 2<sup>i</sup>)) &times; max(1, floor(height / 2<sup>i</sup>))</code>, down to 1&times;1. There are <code>floor(log2(max(width, height))) + 1</code> levels. A full chain adds about 33% to the base level.</p>
+<p><strong>Total</strong> = (sum of all mip levels) &times; faces or layers (cubemap = 6) &times; number of textures &times; 2 if a CPU copy is kept.</p>
+
+<h2>Notes and limits</h2>
+<ul>
+<li>This is an estimate of the raw texel data. Drivers may add padding, alignment or tiling, and an engine's profiler can report slightly different numbers.</li>
+<li>RGB24 is shown as 3 bytes per pixel, but many GPUs store it as 4 bytes (RGBA32). Check your engine's profiler for the real value.</li>
+<li>Crunch, Basis/KTX2 supercompression and file compression reduce the <em>download or disk</em> size, not GPU memory. Once loaded, the texture uses the size of its GPU format (for example BC7 or ASTC).</li>
+<li>ETC1 and BC1 do not store alpha (BC1 has 1-bit alpha). Not every format is supported on every platform: BC is typical on desktop and consoles, ASTC and ETC2 on mobile.</li>
+<li>1 MiB = 1,048,576 bytes. Sizes are shown in KiB/MiB/GiB (binary units), which is what most engine profilers use.</li>
+</ul>
+
+<footer>
+<p>Made by Rulvare. Built with the help of AI (Claude); the formulas were checked against an independent Python implementation. Not affiliated with Unity Technologies, Epic Games or any engine vendor.</p>
+<p>Follow updates on X: <a href="https://x.com/Rulvare000" rel="noopener">@Rulvare000</a> &middot; <a href="/">More tools</a></p>
+</footer>
+</div>
+
+<script>
+/* CALC-START */
+var FORMATS = [
+  {id:"rgba32", name:"RGBA32 (RGBA8)", bw:1, bh:1, bytes:4},
+  {id:"rgb24", name:"RGB24", bw:1, bh:1, bytes:3},
+  {id:"rgb565", name:"RGB565 / RGBA4444", bw:1, bh:1, bytes:2},
+  {id:"r8", name:"R8 / Alpha8", bw:1, bh:1, bytes:1},
+  {id:"rg16", name:"RG16 (RG8) / R16", bw:1, bh:1, bytes:2},
+  {id:"rgbahalf", name:"RGBA Half (RGBA16F)", bw:1, bh:1, bytes:8},
+  {id:"rgbafloat", name:"RGBA Float (RGBA32F)", bw:1, bh:1, bytes:16},
+  {id:"bc1", name:"BC1 (DXT1)", bw:4, bh:4, bytes:8},
+  {id:"bc3", name:"BC3 (DXT5)", bw:4, bh:4, bytes:16},
+  {id:"bc4", name:"BC4", bw:4, bh:4, bytes:8},
+  {id:"bc5", name:"BC5", bw:4, bh:4, bytes:16},
+  {id:"bc6h", name:"BC6H (HDR)", bw:4, bh:4, bytes:16},
+  {id:"bc7", name:"BC7", bw:4, bh:4, bytes:16},
+  {id:"etc2rgb", name:"ETC1 / ETC2 RGB", bw:4, bh:4, bytes:8},
+  {id:"etc2rgba", name:"ETC2 RGBA8 (EAC)", bw:4, bh:4, bytes:16},
+  {id:"astc4", name:"ASTC 4x4", bw:4, bh:4, bytes:16},
+  {id:"astc5", name:"ASTC 5x5", bw:5, bh:5, bytes:16},
+  {id:"astc6", name:"ASTC 6x6", bw:6, bh:6, bytes:16},
+  {id:"astc8", name:"ASTC 8x8", bw:8, bh:8, bytes:16},
+  {id:"astc10", name:"ASTC 10x10", bw:10, bh:10, bytes:16},
+  {id:"astc12", name:"ASTC 12x12", bw:12, bh:12, bytes:16}
+];
+function mipLevels(w, h, mips) {
+  var n = mips ? Math.floor(Math.log2(Math.max(w, h))) + 1 : 1;
+  var out = [];
+  for (var i = 0; i < n; i++) {
+    out.push([Math.max(1, Math.floor(w / Math.pow(2, i))), Math.max(1, Math.floor(h / Math.pow(2, i)))]);
+  }
+  return out;
+}
+function levelBytes(f, w, h) {
+  var bx = Math.ceil(w / f.bw), by = Math.ceil(h / f.bh);
+  return {blocks: bx * by, bytes: bx * by * f.bytes};
+}
+function textureBytes(f, w, h, mips) {
+  var sum = 0, levels = mipLevels(w, h, mips);
+  for (var i = 0; i < levels.length; i++) sum += levelBytes(f, levels[i][0], levels[i][1]).bytes;
+  return sum;
+}
+function totalBytes(f, w, h, mips, faces, count, cpu) {
+  return textureBytes(f, w, h, mips) * faces * count * (cpu ? 2 : 1);
+}
+/* CALC-END */
+
+function fmtSize(b) {
+  if (b < 1024) return b + " B";
+  var u = ["KiB", "MiB", "GiB", "TiB"], v = b, i = -1;
+  do { v /= 1024; i++; } while (v >= 1024 && i < u.length - 1);
+  return v.toFixed(v >= 100 ? 1 : 2) + " " + u[i];
+}
+function $(id) { return document.getElementById(id); }
+var sel = $("fmt");
+FORMATS.forEach(function (f) { var o = document.createElement("option"); o.value = f.id; o.textContent = f.name; sel.appendChild(o); });
+sel.value = "bc7";
+
+function readInt(id, min, max) {
+  var v = Number($(id).value);
+  if (!Number.isInteger(v) || v < min || v > max) return null;
+  return v;
+}
+function update() {
+  var shape = $("shape").value;
+  $("layersBox").hidden = shape !== "array";
+  var w = readInt("w", 1, 65536), h = readInt("h", 1, 65536), count = readInt("count", 1, 100000);
+  var layers = shape === "array" ? readInt("layers", 1, 4096) : (shape === "cube" ? 6 : 1);
+  if (w === null || h === null || count === null || layers === null) {
+    $("err").textContent = "Please enter whole numbers: size 1-65536, layers 1-4096, count 1-100000.";
+    return;
+  }
+  $("err").textContent = "";
+  var mips = $("mips").checked, cpu = $("cpu").checked;
+  var f = FORMATS.filter(function (x) { return x.id === sel.value; })[0];
+  var per = textureBytes(f, w, h, mips) * layers;
+  var total = totalBytes(f, w, h, mips, layers, count, cpu);
+  var levels = mipLevels(w, h, mips);
+  $("total").textContent = fmtSize(total);
+  $("totalBytes").textContent = total.toLocaleString("en-US") + " bytes";
+  $("per").textContent = fmtSize(per);
+  $("perNote").textContent = (shape === "cube" ? "6 faces" : (shape === "array" ? layers + " layers" : "single 2D texture")) + (cpu ? " (GPU only, before CPU copy)" : "");
+  $("bpp").textContent = (f.bytes * 8 / (f.bw * f.bh)).toFixed(2).replace(/\.00$/, "") + " bpp / " + levels.length;
+  var base = totalBytes(FORMATS[0], w, h, mips, layers, count, cpu);
+  $("ratio").textContent = (total / base * 100).toFixed(1) + "% of RGBA32";
+
+  var rows = "";
+  FORMATS.forEach(function (x) {
+    var t = totalBytes(x, w, h, mips, layers, count, cpu);
+    rows += '<tr' + (x.id === f.id ? ' class="sel"' : '') + '><td>' + x.name + '</td><td>' + (x.bw === 1 ? "pixel" : x.bw + "&times;" + x.bh) +
+      '</td><td>' + (x.bytes * 8 / (x.bw * x.bh)).toFixed(2) + '</td><td>' + fmtSize(t) + '</td><td>' + (t / base * 100).toFixed(1) + '%</td></tr>';
+  });
+  document.querySelector("#cmp tbody").innerHTML = rows;
+
+  var mrows = "";
+  levels.forEach(function (l, i) {
+    var lb = levelBytes(f, l[0], l[1]);
+    mrows += '<tr><td>' + i + '</td><td>' + l[0] + '&times;' + l[1] + '</td><td>' + (f.bw === 1 ? "&ndash;" : lb.blocks.toLocaleString("en-US")) + '</td><td>' + lb.bytes.toLocaleString("en-US") + '</td></tr>';
+  });
+  document.querySelector("#miptbl tbody").innerHTML = mrows;
+}
+["w", "h", "fmt", "shape", "layers", "count", "mips", "cpu"].forEach(function (id) {
+  $(id).addEventListener("input", update); $(id).addEventListener("change", update);
+});
+document.querySelectorAll(".presets button").forEach(function (b) {
+  b.addEventListener("click", function () { $("w").value = b.dataset.s; $("h").value = b.dataset.s; update(); });
+});
+update();
+</script>
+</body>
+</html>
